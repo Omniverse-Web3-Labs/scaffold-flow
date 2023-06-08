@@ -1,96 +1,107 @@
 import * as elliptic from 'elliptic';
+import KeyPair from 'elliptic/lib/elliptic/ec/key';
 
 export class OmnichainCrypto {
 
-    pubKey: Buffer;
-    priKey: Buffer;
-    hashFun: (msg: string| Buffer) => Buffer;
+    keyPair: KeyPair;
+    hashFun: (msg: string| Uint8Array) => Uint8Array;
     ec: any;
 
-    constructor(hashFun: (msg: string| Buffer) => Buffer, curveName: string, keyPair?: [string, string]) {
+    constructor(hashFun: (msg: string| Uint8Array) => Uint8Array, curveName: string, sk?: string) {
         this.hashFun = hashFun;
         this.ec = new elliptic.ec(curveName);
 
-        if (typeof keyPair! == 'undefined') {
-            const keyPair = this.ec.genKeyPair();
-            this.pubKey = Buffer.from(keyPair.getPublic('hex'), 'hex');
-            this.priKey = Buffer.from(keyPair.getPrivate('hex'), 'hex');
+        if (typeof sk! == 'undefined') {
+            this.keyPair = this.ec.genKeyPair();
         } else {
-            this.pubKey = Buffer.from(keyPair[0], 'hex');
-            this.priKey = Buffer.from(keyPair[1], 'hex');
+            this.keyPair = this.ec.keyFromPrivate(sk!);
         }
 
-        if (this.pubKey.length === 64) {
-            this.pubKey = Buffer.concat([Buffer.from([4]), this.pubKey]);
-        } else if (this.pubKey.length === 33 || this.pubKey.length === 0) {
-            // do nothing
-        } else {
-            throw("Invalid public key!");
-        }
+        // if (this.pubKey.length === 64) {
+        //     this.pubKey = Buffer.concat([Buffer.from([4]), this.pubKey]);
+        // } else if (this.pubKey.length === 33 || this.pubKey.length === 0) {
+        //     // do nothing
+        // } else {
+        //     throw("Invalid public key!");
+        // }
 
-        if ((this.priKey.length != 0) && (this.priKey.length != 32)) {
-            throw("Invalid private key!");
-        }
+        // if ((this.priKey.length != 0) && (this.priKey.length != 32)) {
+        //     throw("Invalid private key!");
+        // }
     }
 
-    sign2buffer= (msg: string | Buffer): Buffer => {
-        if (this.priKey.length != 32) {
-            throw("Invalid private key to sign!");
-        }
-        
-        const key = this.ec.keyFromPrivate(this.priKey);
-        const sig = key.sign(this.hashFun(msg));
+    getPrivate = () => {
+        return this.keyPair.getPrivate();
+    }
+
+    getPublic = () => {
+        // The length of the uncompressed public key is 65, and the first `04` indicates uncompressed
+        return this.keyPair.getPublic('hex');
+    }
+
+    getPublicCompressed = () => {
+        const pubKey = this.keyPair.getPublic('hex').toString();
+        return Buffer.from(publicKeyCompress(pubKey.substring(2))).toString('hex');
+    }
+
+    sign2buffer= (msg: string | Uint8Array): Buffer => {
+        const sig = this.keyPair.sign(this.hashFun(msg));
         const n = 32;
         const r = sig.r.toArrayLike(Buffer, 'be', n);
         const s = sig.s.toArrayLike(Buffer, 'be', n);
         return Buffer.concat([r, s]);
     };
 
-    sign2hexstring = (msg: string | Buffer): string => {
+    sign2hexstring = (msg: string | Uint8Array): string => {
         return this.sign2buffer(msg).toString('hex');
     };
 
-    sign2bufferrecovery = (msg: string | Buffer): Buffer => {
-        if (this.priKey.length != 32) {
-            throw("Invalid private key to sign!");
-        }
-        
-        const key = this.ec.keyFromPrivate(this.priKey);
-        const sig = key.sign(this.hashFun(msg));
+    sign2bufferrecovery = (msg: string | Uint8Array): Buffer => {
+        const sig = this.keyPair.sign(this.hashFun(msg));
         const n = 32;
         const r = sig.r.toArrayLike(Buffer, 'be', n);
         const s = sig.s.toArrayLike(Buffer, 'be', n);
         return Buffer.concat([r, s, Buffer.from([sig.recoveryParam + 27])]);
     };
 
-    sign2hexstringrecovery = (msg: string | Buffer): string => {
+    sign2hexstringrecovery = (msg: string | Uint8Array): string => {
         return this.sign2bufferrecovery(msg).toString('hex');
     }
  
-    sign = (msg: string | Buffer): elliptic.ec.Signature => {
-        if (this.priKey.length != 32) {
-            throw("Invalid private key to sign!");
-        }
-        
-        const key = this.ec.keyFromPrivate(this.priKey);
-        const sig = key.sign(this.hashFun(msg));
+    sign = (msg: string | Uint8Array): elliptic.ec.Signature => {
+        const sig = this.keyPair.sign(this.hashFun(msg));
         return sig;
     }
 
-    verify = (msg: string | Buffer,
+    verify = (msg: string | Uint8Array,
             signature: string | elliptic.ec.Signature) => {
         
-        if ((this.pubKey.length != 65) && (this.pubKey.length != 33)) {
-            throw("Invalid public key to verify!");
+        var sig;
+        if (typeof signature == 'string') {
+            if (signature.length == 130) {
+                sig = {
+                    r: signature.substring(0, 64),
+                    s: signature.substring(64, 128),
+                    v: signature.substring(128, 130)
+                }
+            } else if (signature.length == 128) {
+                sig = {
+                    r: signature.substring(0, 64),
+                    s: signature.substring(64, 128)
+                }
+            } else {
+                throw("Invalid signature length: "+signature.length);
+            }
+        } else {
+            sig = signature;
         }
 
         const msgHash = this.hashFun(msg);
-        const key = this.ec.keyFromPublic(this.pubKey);
-        return key.verify(msgHash, signature, this.pubKey);
+        return this.keyPair.verify(msgHash, sig);
     }
 }
 
-export async function publicKeyCompress(pubKey: string) {
+export function publicKeyCompress(pubKey: string) {
     if (pubKey.length == 128) {
         const y = "0x" + pubKey.substring(64);
         // console.log(y);
@@ -109,4 +120,3 @@ export async function publicKeyCompress(pubKey: string) {
         throw("Invalid public key length!" + pubKey.length);
     }
 }
-

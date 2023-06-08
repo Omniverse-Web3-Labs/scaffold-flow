@@ -1,12 +1,12 @@
 "use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
+exports.__esModule = true;
 exports.publicKeyCompress = exports.OmnichainCrypto = void 0;
 var elliptic = require("elliptic");
 var OmnichainCrypto = /** @class */ (function () {
     function OmnichainCrypto(hashFun, curveName, sk) {
         var _this = this;
         this.getPrivate = function () {
-            return _this.keyPair.getPrivate();
+            return _this.keyPair.getPrivate('hex');
         };
         this.getPublic = function () {
             // The length of the uncompressed public key is 65, and the first `04` indicates uncompressed

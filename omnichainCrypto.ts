@@ -31,7 +31,7 @@ export class OmnichainCrypto {
     }
 
     getPrivate = () => {
-        return this.keyPair.getPrivate();
+        return this.keyPair.getPrivate('hex');
     }
 
     getPublic = () => {

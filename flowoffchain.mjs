@@ -180,11 +180,19 @@ async function signWithEccrypto() {
 export async function settlement(response) {
     try {
         let rst = fcl.tx(response.transactionId);
-        console.log(await rst.onceSealed());
+        let rstData = await rst.onceSealed()
+        console.log(rstData);
         // console.log(await rst.onceFinalized());
-
+        return {
+            status: true,
+            data: rstData
+        }
     } catch (error) {
         console.log(error);
+        return {
+            status: false,
+            data: error
+        }
     }
 }
 

@@ -1,26 +1,21 @@
 import fcl from '@onflow/fcl';
 import elliptic from 'elliptic';
-import {sha256} from 'js-sha256';
-import { SHA3 } from 'sha3';
-
-import {createSign, createHash, generateKeyPairSync} from 'node:crypto';
-import * as eccrypto from 'eccrypto';
-
 import fs from 'fs';
 import path from 'path';
+import process from 'process';
 
+// const defaultFile = await import("./config/default.json", {
+//     assert: {
+//       type: "json"
+//     }
+// });
 
-fcl.config().put('accessNode.api', 'http://127.0.0.1:8888');
-fcl.config().put('0xProfile', '0xf8d6e0586b0a20c7');
-fcl.config().put('Profile', 'f8d6e0586b0a20c7');
+const configure = JSON.parse(fs.readFileSync(path.join(process.cwd(),'./scaffold-flow/config/default.json')), 'utf8');
+// console.log(configure);
 
-// Get block at height (uses builder function)
-// const response = await fcl.send([fcl.getBlock(), fcl.atBlockHeight(1)]).then(fcl.decode);
-// console.log(response);
-
-// const account = await fcl.account("0xf8d6e0586b0a20c7");
-// console.log(fcl.sansPrefix(account.address));
-// console.log(fcl.withPrefix(account.address));
+fcl.config().put('accessNode.api', configure.accessNode);
+fcl.config().put('0xProfile', configure.ownerAddress);
+fcl.config().put('Profile', configure.ownerAddress);
 
 export class FlowService {
     constructor(address, privateKey, keyId, hashFun, curveName) {
@@ -109,86 +104,19 @@ async function createSubmittion() {
     console.log(response);
 }
 
-const ec = new elliptic.ec('p256');
-
-const sha3_256FromString = (msg) => {
-    const sha = new SHA3(256);
-    sha.update(Buffer.from(msg, 'utf8'));
-    return sha.digest();
-};
-
-const sha3_256FromBytes = (msgBytes) => {
-    const sha = new SHA3(256);
-    sha.update(msgBytes);
-    return sha.digest();
-}
-
-function signWithKey(msg) {
-
-    const key = ec.keyFromPrivate(Buffer.from("69e7e51ead557351ade7a575e947c4d4bd19dd8a6cdf00c51f9c7f6f721b72dc", 'hex'));
-    const sig = key.sign(sha3_256Hash(msg));
-    const n = 32;
-    const r = sig.r.toArrayLike(Buffer, 'be', n);
-    const s = sig.s.toArrayLike(Buffer, 'be', n);
-    console.log(sig.recoveryParam);
-    return Buffer.concat([r, s]).toString('hex');
-};
-
-async function testSignature() {
-    
-    const fService = new FlowService("0xf8d6e0586b0a20c7", "69e7e51ead557351ade7a575e947c4d4bd19dd8a6cdf00c51f9c7f6f721b72dc", 0, sha3_256FromString, "p256");
-
-    const signed = fService.sign2string('hello nika');
-    console.log(signed);
-}
-
-async function exampleHash() {
-    const msg2sign = "hello nika";
-    console.log(sha256(msg2sign));
-    console.log(sha3_256FromString(msg2sign).toString('hex'));
-    console.log(sha3_256FromBytes(Buffer.from(msg2sign, 'utf8')).toString('hex'));
-}
-
-async function signatureWithCrypto() {
-    const { privateKey, publicKey } = generateKeyPairSync('ec', {
-        namedCurve: 'P-256'
-      });
-
-    const privateKeyStr = privateKey.export({ format: 'pem', type: 'pkcs8' }).toString();
-    console.log(privateKeyStr);
-
-    const sign = createSign('SHA3-256');
-    sign.update('hello nika');
-    sign.end();
-    const signature = sign.sign(privateKey, 'hex');
-
-    console.log(signature);
-}
-
-async function signWithEccrypto() {
-    const privateKey = Buffer.from('69e7e51ead557351ade7a575e947c4d4bd19dd8a6cdf00c51f9c7f6f721b72dc', 'hex');
-
-    var msg = createHash("SHA3-256").update('hello nika').digest();
-    // console.log(msg.toString('hex'));
-
-    const signature = await eccrypto.sign(privateKey, msg);
-    console.log(signature.toString('hex'));
-}
-
 // export default FlowService;
-
 export async function settlement(response) {
     try {
         let rst = fcl.tx(response.transactionId);
         let rstData = await rst.onceSealed()
-        console.log(rstData);
+        // console.log(rstData);
         // console.log(await rst.onceFinalized());
         return {
             status: true,
             data: rstData
         }
     } catch (error) {
-        console.log(error);
+        // console.log(error);
         return {
             status: false,
             data: error
